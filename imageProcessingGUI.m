@@ -1,138 +1,205 @@
-function varargout = imageProcessingGUI(varargin)
+function create_gui()
+  % 创建主窗口，使用 uifigure 替代 figure
+    hFig = uifigure('Name', '图像处理工具', 'NumberTitle', 'off', 'Position', [100, 100, 800, 600]);
 
-    % 创建一个新的图形窗口
-    hFig = figure('Name', '图像处理工具', 'NumberTitle', 'off', 'Position', [100, 100, 600, 500]);
+    % 设置布局
+    mainLayout = uigridlayout(hFig, [2, 1]);  % 分成两行一列
+    mainLayout.RowHeight = {300, 300};        % 第一行300px，第二行100px
 
-    % 创建按钮：加载图像
-    loadButton = uicontrol('Style', 'pushbutton', 'String', '加载图像', 'Position', [20, 450, 100, 30], 'Callback', @loadImageButton_Callback);
+    % 图像显示区域
+    imagePanel = uipanel('Parent', mainLayout, 'Title', '图像显示区', 'FontSize', 12);
+    ax = axes('Parent', imagePanel, 'Position', [0, 0, 1, 1]);
 
-    % 创建按钮：转换为灰度图
-    convertButton = uicontrol('Style', 'pushbutton', 'String', '转换为灰度', 'Position', [140, 450, 100, 30], 'Callback', @convertToGrayButton_Callback);
+    % 按钮面板
+    buttonPanel = uipanel('Parent', mainLayout, 'Title', '操作按钮', 'FontSize', 12);
+    buttonPanel.Layout.Column = 1;
+    buttonPanel.Layout.Row = 2;
 
-    % 创建按钮：保存图像
-    saveButton = uicontrol('Style', 'pushbutton', 'String', '保存图像', 'Position', [260, 450, 100, 30], 'Callback', @saveImageButton_Callback);
+    % 按钮布局
+    buttonLayout = uigridlayout(buttonPanel, [2, 4]); % 两行四列
+    buttonLayout.RowHeight = {40, 40}; % 按钮的高度
+    buttonLayout.ColumnWidth = {'1x', '1x', '1x', '1x'};  % 按钮均匀分布
 
-    % 创建按钮：线性对比度变换
-    linearButton = uicontrol('Style', 'pushbutton', 'String', '线性对比度变换', 'Position', [380, 450, 130, 30], 'Callback', @linearContrastButton_Callback);
+    % 创建按钮
+    loadButton = uibutton(buttonLayout, 'Text', '加载图像', 'ButtonPushedFcn', @(src, event) loadButton_Callback());
+    histButton = uibutton(buttonLayout, 'Text', '显示直方图', 'ButtonPushedFcn', @(src, event) histButton_Callback());
+    equalizeButton = uibutton(buttonLayout, 'Text', '直方图均衡化', 'ButtonPushedFcn', @(src, event) equalizeButton_Callback());
+    matchButton = uibutton(buttonLayout, 'Text', '直方图匹配', 'ButtonPushedFcn', @(src, event) matchButton_Callback());
 
-    % 创建按钮：对数对比度变换
-    logButton = uicontrol('Style', 'pushbutton', 'String', '对数对比度变换', 'Position', [20, 400, 130, 30], 'Callback', @logContrastButton_Callback);
+    linearButton = uibutton(buttonLayout, 'Text', '线性增强', 'ButtonPushedFcn', @(src, event) linearButton_Callback());
+    grayButton = uibutton(buttonLayout, 'Text', '灰度转换', 'ButtonPushedFcn', @(src, event) grayButton_Callback());
+    zoomButton = uibutton(buttonLayout, 'Text', '图像缩放', 'ButtonPushedFcn', @(src, event) zoomButton_Callback());
+    rotateButton = uibutton(buttonLayout, 'Text', '图像旋转', 'ButtonPushedFcn', @(src, event) rotateButton_Callback());
 
-    % 创建按钮：指数对比度变换
-    expButton = uicontrol('Style', 'pushbutton', 'String', '指数对比度变换', 'Position', [160, 400, 130, 30], 'Callback', @expContrastButton_Callback);
-
-    % 创建显示区域
-    handles.imageAxes = axes('Parent', hFig, 'Position', [0.1, 0.1, 0.8, 0.7]);
-
-    % 初始化 handles 结构
-    handles.output = hFig;
-    handles.img = [];
-    handles.grayImg = [];
-    handles.enhancedImg = [];  % 存储增强后的图像
-
-    % 更新 handles 结构
+    % 初始化handles
+    handles = struct();
     guidata(hFig, handles);
-
-    % 设置输出
-    if nargout
-        varargout{1} = hFig;
-    end
-
-    % 按钮回调函数：加载图像
-    function loadImageButton_Callback(hObject, eventdata)
-        [filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', '图像文件 (*.jpg, *.png, *.bmp)'}, '选择一张图像');
-        if filename ~= 0
-            img = imread(fullfile(pathname, filename));
+    % 回调函数：加载图像
+    function loadButton_Callback(hObject, eventdata)
+        [fileName, pathName] = uigetfile({'*.jpg;*.png;*.bmp', '所有图像文件'});
+        if fileName
+            img = imread(fullfile(pathName, fileName));
             axes(handles.imageAxes);
             imshow(img);
-            handles.img = img;
-            set(convertButton, 'Enable', 'on');  % 启用转换按钮
+            handles.img = img;  % 保存图像
             guidata(hFig, handles);
-        else
-            errordlg('未选择图像文件！', '错误');
         end
     end
 
-    % 按钮回调函数：转换图像为灰度图
-    function convertToGrayButton_Callback(hObject, eventdata)
-        if ~isempty(handles.img)
+    % 回调函数：显示直方图
+    function histButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            img = rgb2gray(handles.img);
+            axes(handles.histAxes);
+            imhist(img);  % 显示灰度直方图
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+    % 回调函数：直方图均衡化
+    function equalizeButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            img = rgb2gray(handles.img);
+            equalizedImg = histeq(img);  % 直方图均衡化
+            axes(handles.imageAxes);
+            imshow(equalizedImg);
+            handles.enhancedImg = equalizedImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+    % 回调函数：直方图匹配
+    function matchButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            [fileName, pathName] = uigetfile({'*.jpg;*.png;*.bmp', '选择参考图像'});
+            if fileName
+                refImg = rgb2gray(imread(fullfile(pathName, fileName)));
+                img = rgb2gray(handles.img);
+                matchedImg = imhistmatch(img, refImg);  % 直方图匹配
+                axes(handles.imageAxes);
+                imshow(matchedImg);
+                handles.enhancedImg = matchedImg;
+                guidata(hFig, handles);
+            end
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+    % 回调函数：灰度转换
+    function grayButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
             grayImg = rgb2gray(handles.img);
             axes(handles.imageAxes);
             imshow(grayImg);
-            handles.grayImg = grayImg;
-            set(linearButton, 'Enable', 'on');  % 启用对比度变换按钮
-            set(logButton, 'Enable', 'on');
-            set(expButton, 'Enable', 'on');
+            handles.grayImg = grayImg;  % 保存灰度图
             guidata(hFig, handles);
         else
-            errordlg('未加载任何图像！', '错误');
+            errordlg('请先加载图像！', '错误');
         end
     end
 
-    % 按钮回调函数：保存图像
-    function saveImageButton_Callback(hObject, eventdata)
-        if ~isempty(handles.enhancedImg)
-            [filename, pathname] = uiputfile({'*.jpg;*.png;*.bmp', '图像文件 (*.jpg, *.png, *.bmp)'}, '保存图像为');
-            if filename ~= 0
-                imwrite(handles.enhancedImg, fullfile(pathname, filename));
+    % 回调函数：线性对比度增强
+    function linearButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            img = rgb2gray(handles.img);
+            % 线性变换
+            min_val = double(min(img(:)));
+            max_val = double(max(img(:)));
+            linearImg = uint8(255 * (double(img) - min_val) / (max_val - min_val));
+            axes(handles.imageAxes);
+            imshow(linearImg);
+            handles.enhancedImg = linearImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+    % 回调函数：对数增强
+    function logButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            img = rgb2gray(handles.img);
+            % 对数变换
+            c = 255 / log(1 + double(max(img(:))));
+            logImg = uint8(c * log(1 + double(img)));
+            axes(handles.imageAxes);
+            imshow(logImg);
+            handles.enhancedImg = logImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+    % 回调函数：指数增强
+    function expButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            img = rgb2gray(handles.img);
+            % 指数变换
+            c = 255 / exp(double(max(img(:))) / 255);
+            expImg = uint8(c * (exp(double(img) / 255) - 1));
+            axes(handles.imageAxes);
+            imshow(expImg);
+            handles.enhancedImg = expImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+    % 回调函数：图像缩放
+    function zoomButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            prompt = {'输入缩放因子：'};
+            dlgtitle = '图像缩放';
+            dims = [1 35];
+            definput = {'1'};
+            answer = inputdlg(prompt, dlgtitle, dims, definput);
+            if ~isempty(answer)
+                zoomFactor = str2double(answer{1});
+                if ~isnan(zoomFactor)
+                    % 缩放图像
+                    resizedImg = imresize(handles.img, zoomFactor);
+                    axes(handles.imageAxes);
+                                        imshow(resizedImg);
+                    handles.resizedImg = resizedImg;
+                    guidata(hFig, handles);
+                else
+                    errordlg('请输入有效的缩放因子！', '错误');
+                end
             end
         else
-            errordlg('没有图像可以保存！', '错误');
+            errordlg('请先加载图像！', '错误');
         end
     end
 
-    % 线性对比度增强函数
-    function linearContrastButton_Callback(hObject, eventdata)
-        if ~isempty(handles.grayImg)
-            % 线性对比度增强：简单的线性变换 f(x) = a*x + b
-            img = double(handles.grayImg);  % 转换为 double 类型进行处理
-            minVal = min(img(:));
-            maxVal = max(img(:));
-            % 线性变换公式： (x - min) / (max - min) * 255
-            enhancedImg = (img - minVal) / (maxVal - minVal) * 255;
-            enhancedImg = uint8(enhancedImg);  % 转换回 uint8 类型
-            axes(handles.imageAxes);
-            imshow(enhancedImg);
-            handles.enhancedImg = enhancedImg;
-            guidata(hFig, handles);
+    % 回调函数：图像旋转
+    function rotateButton_Callback(hObject, eventdata)
+        if isfield(handles, 'img')
+            prompt = {'输入旋转角度（度）：'};
+            dlgtitle = '图像旋转';
+            dims = [1 35];
+            definput = {'0'};
+            answer = inputdlg(prompt, dlgtitle, dims, definput);
+            if ~isempty(answer)
+                angle = str2double(answer{1});
+                if ~isnan(angle)
+                    % 旋转图像
+                    rotatedImg = imrotate(handles.img, angle, 'bilinear', 'crop');
+                    axes(handles.imageAxes);
+                    imshow(rotatedImg);
+                    handles.rotatedImg = rotatedImg;
+                    guidata(hFig, handles);
+                else
+                    errordlg('请输入有效的旋转角度！', '错误');
+                end
+            end
         else
-            errordlg('请先转换为灰度图！', '错误');
+            errordlg('请先加载图像！', '错误');
         end
     end
-
-    % 对数对比度增强函数
-    function logContrastButton_Callback(hObject, eventdata)
-        if ~isempty(handles.grayImg)
-            % 对数对比度增强：f(x) = c * log(1 + x)
-            img = double(handles.grayImg);  % 转换为 double 类型
-            c = 255 / log(1 + max(img(:)));  % 计算常数 c，确保输出范围为 0 到 255
-            enhancedImg = c * log(1 + img);
-            enhancedImg = uint8(enhancedImg);  % 转换回 uint8 类型
-            axes(handles.imageAxes);
-            imshow(enhancedImg);
-            handles.enhancedImg = enhancedImg;
-            guidata(hFig, handles);
-        else
-            errordlg('请先转换为灰度图！', '错误');
-        end
-    end
-
-    % 指数对比度增强函数
-    function expContrastButton_Callback(hObject, eventdata)
-        if ~isempty(handles.grayImg)
-            % 指数对比度增强：f(x) = c * (e^(x / b) - 1)
-            img = double(handles.grayImg);  % 转换为 double 类型
-            b = 50;  % 控制指数增长的参数
-            c = 255 / (exp(max(img(:)) / b) - 1);  % 计算常数 c，确保输出范围为 0 到 255
-            enhancedImg = c * (exp(img / b) - 1);
-            enhancedImg = uint8(enhancedImg);  % 转换回 uint8 类型
-            axes(handles.imageAxes);
-            imshow(enhancedImg);
-            handles.enhancedImg = enhancedImg;
-            guidata(hFig, handles);
-        else
-            errordlg('请先转换为灰度图！', '错误');
-        end
-    end
-
 end
