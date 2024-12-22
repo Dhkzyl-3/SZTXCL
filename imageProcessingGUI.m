@@ -1,24 +1,34 @@
 function varargout = imageProcessingGUI(varargin)
 
-   % 创建一个新的图形窗口
-    hFig = figure('Name', '图像处理工具', 'NumberTitle', 'off', 'Position', [100, 100, 600, 400]);
+    % 创建一个新的图形窗口
+    hFig = figure('Name', '图像处理工具', 'NumberTitle', 'off', 'Position', [100, 100, 600, 500]);
 
-    % 创建一个按钮，加载图像
-    uicontrol('Style', 'pushbutton', 'String', '加载图像', 'Position', [20, 350, 100, 30], 'Callback', @loadImageButton_Callback);
+    % 创建按钮：加载图像
+    loadButton = uicontrol('Style', 'pushbutton', 'String', '加载图像', 'Position', [20, 450, 100, 30], 'Callback', @loadImageButton_Callback);
 
-    % 创建一个按钮，转换图像为灰度图
-    uicontrol('Style', 'pushbutton', 'String', '转换为灰度', 'Position', [140, 350, 100, 30], 'Callback', @convertToGrayButton_Callback);
+    % 创建按钮：转换为灰度图
+    convertButton = uicontrol('Style', 'pushbutton', 'String', '转换为灰度', 'Position', [140, 450, 100, 30], 'Callback', @convertToGrayButton_Callback);
 
-    % 创建一个按钮，保存图像
-    uicontrol('Style', 'pushbutton', 'String', '保存图像', 'Position', [260, 350, 100, 30], 'Callback', @saveImageButton_Callback);
+    % 创建按钮：保存图像
+    saveButton = uicontrol('Style', 'pushbutton', 'String', '保存图像', 'Position', [260, 450, 100, 30], 'Callback', @saveImageButton_Callback);
 
-    % 创建一个axes，用于显示图像
+    % 创建按钮：线性对比度变换
+    linearButton = uicontrol('Style', 'pushbutton', 'String', '线性对比度变换', 'Position', [380, 450, 130, 30], 'Callback', @linearContrastButton_Callback);
+
+    % 创建按钮：对数对比度变换
+    logButton = uicontrol('Style', 'pushbutton', 'String', '对数对比度变换', 'Position', [20, 400, 130, 30], 'Callback', @logContrastButton_Callback);
+
+    % 创建按钮：指数对比度变换
+    expButton = uicontrol('Style', 'pushbutton', 'String', '指数对比度变换', 'Position', [160, 400, 130, 30], 'Callback', @expContrastButton_Callback);
+
+    % 创建显示区域
     handles.imageAxes = axes('Parent', hFig, 'Position', [0.1, 0.1, 0.8, 0.7]);
 
     % 初始化 handles 结构
     handles.output = hFig;
-    handles.img = [];      % 用于存储加载的原始图像
-    handles.grayImg = [];  % 用于存储灰度图像
+    handles.img = [];
+    handles.grayImg = [];
+    handles.enhancedImg = [];  % 存储增强后的图像
 
     % 更新 handles 结构
     guidata(hFig, handles);
@@ -27,50 +37,102 @@ function varargout = imageProcessingGUI(varargin)
     if nargout
         varargout{1} = hFig;
     end
+
     % 按钮回调函数：加载图像
     function loadImageButton_Callback(hObject, eventdata)
-        % 打开文件对话框，选择要加载的图像
         [filename, pathname] = uigetfile({'*.jpg;*.png;*.bmp', '图像文件 (*.jpg, *.png, *.bmp)'}, '选择一张图像');
-        
         if filename ~= 0
-            % 加载图像，并显示在指定的axes中
             img = imread(fullfile(pathname, filename));
-            axes(handles.imageAxes);  % 设置要显示图像的axes
-            imshow(img);  % 显示图像
-            % 将图像数据保存到handles结构中
+            axes(handles.imageAxes);
+            imshow(img);
             handles.img = img;
-            guidata(hFig, handles);  % 更新handles结构
+            set(convertButton, 'Enable', 'on');  % 启用转换按钮
+            guidata(hFig, handles);
+        else
+            errordlg('未选择图像文件！', '错误');
         end
     end
+
     % 按钮回调函数：转换图像为灰度图
     function convertToGrayButton_Callback(hObject, eventdata)
         if ~isempty(handles.img)
-            % 将加载的彩色图像转换为灰度图
             grayImg = rgb2gray(handles.img);
-            % 显示灰度图像
             axes(handles.imageAxes);
             imshow(grayImg);
-            % 将灰度图像保存到handles结构中
             handles.grayImg = grayImg;
-            guidata(hFig, handles);  % 更新handles结构
+            set(linearButton, 'Enable', 'on');  % 启用对比度变换按钮
+            set(logButton, 'Enable', 'on');
+            set(expButton, 'Enable', 'on');
+            guidata(hFig, handles);
         else
-            % 如果没有加载图像，弹出错误对话框
             errordlg('未加载任何图像！', '错误');
         end
     end
+
     % 按钮回调函数：保存图像
     function saveImageButton_Callback(hObject, eventdata)
-        if ~isempty(handles.grayImg)
-            % 打开保存文件对话框，选择保存路径和文件名
+        if ~isempty(handles.enhancedImg)
             [filename, pathname] = uiputfile({'*.jpg;*.png;*.bmp', '图像文件 (*.jpg, *.png, *.bmp)'}, '保存图像为');
             if filename ~= 0
-                % 将当前的灰度图像保存到选定的文件
-                imwrite(handles.grayImg, fullfile(pathname, filename));
+                imwrite(handles.enhancedImg, fullfile(pathname, filename));
             end
         else
-            % 如果没有灰度图像可保存，弹出错误对话框
             errordlg('没有图像可以保存！', '错误');
         end
     end
-end
 
+    % 线性对比度增强函数
+    function linearContrastButton_Callback(hObject, eventdata)
+        if ~isempty(handles.grayImg)
+            % 线性对比度增强：简单的线性变换 f(x) = a*x + b
+            img = double(handles.grayImg);  % 转换为 double 类型进行处理
+            minVal = min(img(:));
+            maxVal = max(img(:));
+            % 线性变换公式： (x - min) / (max - min) * 255
+            enhancedImg = (img - minVal) / (maxVal - minVal) * 255;
+            enhancedImg = uint8(enhancedImg);  % 转换回 uint8 类型
+            axes(handles.imageAxes);
+            imshow(enhancedImg);
+            handles.enhancedImg = enhancedImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先转换为灰度图！', '错误');
+        end
+    end
+
+    % 对数对比度增强函数
+    function logContrastButton_Callback(hObject, eventdata)
+        if ~isempty(handles.grayImg)
+            % 对数对比度增强：f(x) = c * log(1 + x)
+            img = double(handles.grayImg);  % 转换为 double 类型
+            c = 255 / log(1 + max(img(:)));  % 计算常数 c，确保输出范围为 0 到 255
+            enhancedImg = c * log(1 + img);
+            enhancedImg = uint8(enhancedImg);  % 转换回 uint8 类型
+            axes(handles.imageAxes);
+            imshow(enhancedImg);
+            handles.enhancedImg = enhancedImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先转换为灰度图！', '错误');
+        end
+    end
+
+    % 指数对比度增强函数
+    function expContrastButton_Callback(hObject, eventdata)
+        if ~isempty(handles.grayImg)
+            % 指数对比度增强：f(x) = c * (e^(x / b) - 1)
+            img = double(handles.grayImg);  % 转换为 double 类型
+            b = 50;  % 控制指数增长的参数
+            c = 255 / (exp(max(img(:)) / b) - 1);  % 计算常数 c，确保输出范围为 0 到 255
+            enhancedImg = c * (exp(img / b) - 1);
+            enhancedImg = uint8(enhancedImg);  % 转换回 uint8 类型
+            axes(handles.imageAxes);
+            imshow(enhancedImg);
+            handles.enhancedImg = enhancedImg;
+            guidata(hFig, handles);
+        else
+            errordlg('请先转换为灰度图！', '错误');
+        end
+    end
+
+end
