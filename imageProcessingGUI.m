@@ -23,8 +23,8 @@ function create_gui()
     buttonPanel.Layout.Row = 2;
 
     % 按钮布局
-    buttonLayout = uigridlayout(buttonPanel, [3, 4]); % 三行四列的布局
-    buttonLayout.RowHeight = {40, 40, 40}; % 每个按钮的高度
+    buttonLayout = uigridlayout(buttonPanel, [5, 4]); % 三行四列的布局
+    buttonLayout.RowHeight = {40, 40, 40,40,40}; % 每个按钮的高度
     buttonLayout.ColumnWidth = {'1x', '1x', '1x', '1x'};  % 按钮均匀分布
 
     % 创建按钮
@@ -38,7 +38,11 @@ function create_gui()
     zoomButton = uibutton(buttonLayout, 'Text', '图像缩放', 'ButtonPushedFcn', @(src, event) zoomButton_Callback());
     rotateButton = uibutton(buttonLayout, 'Text', '图像旋转', 'ButtonPushedFcn', @(src, event) rotateButton_Callback());
     noiseButton = uibutton(buttonLayout, 'Text', '加噪声与滤波', 'ButtonPushedFcn', @(src, event) noiseButton_Callback());
-
+% 新增边缘检测按钮
+    robertButton = uibutton(buttonLayout, 'Text', 'Robert 边缘', 'ButtonPushedFcn', @(src, event) robertButton_Callback());
+    prewittButton = uibutton(buttonLayout, 'Text', 'Prewitt 边缘', 'ButtonPushedFcn', @(src, event) prewittButton_Callback());
+    sobelButton = uibutton(buttonLayout, 'Text', 'Sobel 边缘', 'ButtonPushedFcn', @(src, event) sobelButton_Callback());
+    laplacianButton = uibutton(buttonLayout, 'Text', '拉普拉斯 边缘', 'ButtonPushedFcn', @(src, event) laplacianButton_Callback());
     % 回调函数：加载图像
     function loadButton_Callback(hObject, eventdata)
         % 打开文件选择对话框，选择图像文件
@@ -292,4 +296,77 @@ function create_gui()
             errordlg('请先加载图像！', '错误');
         end
     end
+ % 回调函数：Robert 边缘检测
+    function robertButton_Callback(hObject, eventdata)
+        handles = guidata(hFig);
+    if isfield(handles, 'img')
+        img = rgb2gray(handles.img);  % 转为灰度图
+        
+        % 定义 Robert 算子的两个卷积核
+        Gx = [1 0; 0 -1];  % 水平方向的核
+        Gy = [0 1; -1 0];  % 垂直方向的核
+        
+        % 使用 imfilter 进行卷积操作
+        edgeX = imfilter(double(img), Gx, 'replicate');
+        edgeY = imfilter(double(img), Gy, 'replicate');
+        
+        % 计算梯度幅值
+        edgeImg = sqrt(edgeX.^2 + edgeY.^2);
+        edgeImg = mat2gray(edgeImg);
+        % 显示边缘检测结果
+        axes(handles.imageAxes);
+        imshow(edgeImg, []);
+    else
+        errordlg('请先加载图像！', '错误');
+    end
+end
+
+    % 回调函数：Prewitt 边缘检测
+    function prewittButton_Callback(hObject, eventdata)
+    handles = guidata(hFig);
+    if isfield(handles, 'img')
+        img = rgb2gray(handles.img);  % 转为灰度图
+        edgeImg = edge(img, 'Prewitt');  % 使用 Prewitt 算子进行边缘检测
+        edgeImg = mat2gray(edgeImg);
+        % 创建新窗口显示结果
+        figure('Name', 'Prewitt 边缘检测', 'NumberTitle', 'off');
+        imshow(edgeImg,[]);  % 显示边缘检测结果
+    else
+        errordlg('请先加载图像！', '错误');
+    end
+end
+ % 回调函数：Sobel 边缘检测
+    function sobelButton_Callback(hObject, eventdata)
+    handles = guidata(hFig);
+    if isfield(handles, 'img')
+        img = rgb2gray(handles.img);  % 转为灰度图
+        edgeImg = edge(img, 'Sobel');  % 使用 Sobel 算子进行边缘检测
+        edgeImg = mat2gray(edgeImg);
+        % 创建新窗口显示结果
+        figure('Name', 'Sobel 边缘检测', 'NumberTitle', 'off');
+        imshow(edgeImg,[]);  % 显示边缘检测结果
+    else
+        errordlg('请先加载图像！', '错误');
+    end
+end
+
+    % 回调函数：拉普拉斯边缘检测
+      function laplacianButton_Callback(hObject, eventdata)
+      handles = guidata(hFig);
+      if isfield(handles, 'img')
+          img = rgb2gray(handles.img);  % 转为灰度图
+
+        % 使用拉普拉斯算子进行边缘检测
+          edgeImg = edge(img, 'log');  % 拉普拉斯算子
+
+        % 增强对比度
+          edgeImg = mat2gray(edgeImg);
+
+        % 创建新窗口显示结果
+          figure('Name', '拉普拉斯边缘检测', 'NumberTitle', 'off');
+          imshow(edgeImg,[]);  % 显示边缘检测结果
+      else
+          errordlg('请先加载图像！', '错误');
+      end
+  end
 end
