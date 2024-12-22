@@ -1,5 +1,5 @@
 function create_gui()
-  % 创建主窗口，使用 uifigure 替代 figure
+    % 创建主窗口，使用 uifigure 替代 figure
     hFig = uifigure('Name', '图像处理工具', 'NumberTitle', 'off', 'Position', [100, 100, 800, 600]);
 
     % 设置布局
@@ -8,16 +8,23 @@ function create_gui()
 
     % 图像显示区域
     imagePanel = uipanel('Parent', mainLayout, 'Title', '图像显示区', 'FontSize', 12);
-    ax = axes('Parent', imagePanel, 'Position', [0, 0, 1, 1]);
+    ax = axes('Parent', imagePanel, 'Position', [0, 0, 1, 1]);  % axes 填满整个 panel
+    
+    % 创建用于显示直方图的 axes
+    histPanel = uipanel('Parent', mainLayout, 'Title', '直方图显示区', 'FontSize', 12);
+    handles.histAxes = axes('Parent', histPanel, 'Position', [0, 0, 1, 1]);  % axes 填满整个 panel
+
+    % 将 axes 存储在 handles 结构中，确保能够在回调中访问
+    handles.imageAxes = ax;
+    guidata(hFig, handles);  % 更新 handles
 
     % 按钮面板
     buttonPanel = uipanel('Parent', mainLayout, 'Title', '操作按钮', 'FontSize', 12);
-    buttonPanel.Layout.Column = 1;
     buttonPanel.Layout.Row = 2;
 
     % 按钮布局
-    buttonLayout = uigridlayout(buttonPanel, [2, 4]); % 两行四列
-    buttonLayout.RowHeight = {40, 40}; % 按钮的高度
+    buttonLayout = uigridlayout(buttonPanel, [3, 4]); % 三行四列的布局
+    buttonLayout.RowHeight = {40, 40, 40}; % 每个按钮的高度
     buttonLayout.ColumnWidth = {'1x', '1x', '1x', '1x'};  % 按钮均匀分布
 
     % 创建按钮
@@ -30,59 +37,70 @@ function create_gui()
     grayButton = uibutton(buttonLayout, 'Text', '灰度转换', 'ButtonPushedFcn', @(src, event) grayButton_Callback());
     zoomButton = uibutton(buttonLayout, 'Text', '图像缩放', 'ButtonPushedFcn', @(src, event) zoomButton_Callback());
     rotateButton = uibutton(buttonLayout, 'Text', '图像旋转', 'ButtonPushedFcn', @(src, event) rotateButton_Callback());
+    noiseButton = uibutton(buttonLayout, 'Text', '加噪声与滤波', 'ButtonPushedFcn', @(src, event) noiseButton_Callback());
 
-    % 初始化handles
-    handles = struct();
-    guidata(hFig, handles);
     % 回调函数：加载图像
     function loadButton_Callback(hObject, eventdata)
+        % 打开文件选择对话框，选择图像文件
         [fileName, pathName] = uigetfile({'*.jpg;*.png;*.bmp', '所有图像文件'});
         if fileName
-            img = imread(fullfile(pathName, fileName));
-            axes(handles.imageAxes);
-            imshow(img);
-            handles.img = img;  % 保存图像
-            guidata(hFig, handles);
+            img = imread(fullfile(pathName, fileName));  % 读取选中的图像文件
+            handles = guidata(hFig);  % 读取当前的 handles
+            axes(handles.imageAxes);  % 将图像显示在指定的 axes 上
+            imshow(img, 'Parent', handles.imageAxes);  % 在当前的 axes 中显示图像
+            handles.img = img;  % 将图像保存到 handles 结构中
+            guidata(hFig, handles);  % 更新 handles
         end
     end
-
+    
     % 回调函数：显示直方图
     function histButton_Callback(hObject, eventdata)
+        handles = guidata(hFig);  % 获取最新的 handles
         if isfield(handles, 'img')
-            img = rgb2gray(handles.img);
-            axes(handles.histAxes);
+            img = rgb2gray(handles.img);  % 将图像转为灰度图
+            axes(handles.histAxes);  % 切换到直方图的 axes
             imhist(img);  % 显示灰度直方图
         else
-            errordlg('请先加载图像！', '错误');
+            errordlg('请先加载图像！', '错误');  % 如果没有加载图像，则弹出错误对话框
         end
     end
-
     % 回调函数：直方图均衡化
     function equalizeButton_Callback(hObject, eventdata)
+        handles = guidata(hFig);  % 获取最新的 handles
         if isfield(handles, 'img')
-            img = rgb2gray(handles.img);
-            equalizedImg = histeq(img);  % 直方图均衡化
-            axes(handles.imageAxes);
-            imshow(equalizedImg);
-            handles.enhancedImg = equalizedImg;
-            guidata(hFig, handles);
+            img = rgb2gray(handles.img);  % 将图像转为灰度图
+            eqImg = histeq(img);  % 进行直方图均衡化
+            axes(handles.imageAxes);  % 显示均衡化后的图像
+            imshow(eqImg, 'Parent', handles.imageAxes);  % 显示均衡化后的图像
+            axes(handles.histAxes);  % 显示均衡化后的直方图
+            imhist(eqImg);  % 显示均衡化后的直方图
         else
             errordlg('请先加载图像！', '错误');
         end
     end
-
     % 回调函数：直方图匹配
     function matchButton_Callback(hObject, eventdata)
+        handles = guidata(hFig);  % 获取最新的 handles
         if isfield(handles, 'img')
-            [fileName, pathName] = uigetfile({'*.jpg;*.png;*.bmp', '选择参考图像'});
+            img = rgb2gray(handles.img);  % 将图像转为灰度图
+
+            % 目标图像（可以选择从文件加载一个目标图像，也可以使用默认图像）
+            [fileName, pathName] = uigetfile({'*.jpg;*.png;*.bmp', '所有图像文件'}, '选择目标图像');
             if fileName
-                refImg = rgb2gray(imread(fullfile(pathName, fileName)));
-                img = rgb2gray(handles.img);
-                matchedImg = imhistmatch(img, refImg);  % 直方图匹配
+                targetImg = rgb2gray(imread(fullfile(pathName, fileName)));  % 读取目标图像并转换为灰度
+
+                % 进行直方图匹配
+                matchedImg = imhistmatch(img, targetImg);
+
+                % 显示匹配后的图像
                 axes(handles.imageAxes);
-                imshow(matchedImg);
-                handles.enhancedImg = matchedImg;
-                guidata(hFig, handles);
+                imshow(matchedImg, 'Parent', handles.imageAxes);
+                
+                % 显示匹配后的直方图
+                axes(handles.histAxes);
+                imhist(matchedImg);
+            else
+                errordlg('未选择目标图像进行匹配', '错误');
             end
         else
             errordlg('请先加载图像！', '错误');
@@ -176,7 +194,7 @@ function create_gui()
             errordlg('请先加载图像！', '错误');
         end
     end
-
+    
     % 回调函数：图像旋转
     function rotateButton_Callback(hObject, eventdata)
         if isfield(handles, 'img')
@@ -198,6 +216,78 @@ function create_gui()
                     errordlg('请输入有效的旋转角度！', '错误');
                 end
             end
+        else
+            errordlg('请先加载图像！', '错误');
+        end
+    end
+
+ % 回调函数：加噪声和滤波
+    function noiseButton_Callback()
+        if isfield(handles, 'img')
+            % 输入噪声类型和参数
+            % 选择噪声类型对话框
+            noiseType = listdlg('PromptString', '选择噪声类型', 'SelectionMode', 'single', ...
+                'ListString', {'高斯噪声', '椒盐噪声'}, 'SelectionMode', 'single', 'OKString', '确认');
+            if isempty(noiseType)
+                return;
+            end
+            
+            noiseLevel = inputdlg('请输入噪声强度（例如：0.05表示5%的噪声）：', '噪声强度', [1 50], {'0.05'});
+            if isempty(noiseLevel)
+                return;
+            end
+            noiseLevel = str2double(noiseLevel{1});
+            if isnan(noiseLevel) || noiseLevel < 0 || noiseLevel > 1
+                errordlg('噪声强度应在0到1之间！', '错误');
+                return;
+            end
+
+            % 添加噪声
+            switch noiseType
+                case 1 % 高斯噪声
+                    noisyImg = imnoise(handles.img, 'gaussian', 0, noiseLevel);
+                case 2 % 椒盐噪声
+                    noisyImg = imnoise(handles.img, 'salt & pepper', noiseLevel);
+            end
+
+            % 显示加噪后的图像
+            axes(ax);
+            imshow(noisyImg);
+            title('加噪声后的图像');
+            handles.noisyImg = noisyImg;
+            guidata(hFig, handles);
+
+            % 执行滤波处理
+            % 空域滤波 - 均值滤波
+            h = fspecial('average', [3 3]);  % 创建一个3x3均值滤波器
+            filteredImg = imfilter(noisyImg, h);
+            figure;
+            imshow(filteredImg);
+            title('均值滤波处理后的图像');
+
+            % 频域滤波 - 理想低通滤波
+            noisyImgGray = rgb2gray(noisyImg); % 转换为灰度图像
+            [rows, cols] = size(noisyImgGray);
+            f = fft2(double(noisyImgGray)); % 计算图像的傅里叶变换
+            fshift = fftshift(f); % 将零频移到图像中心
+            magnitude = abs(fshift); % 获取幅度谱
+            phase = angle(fshift); % 获取相位谱
+
+            % 创建理想低通滤波器
+            D0 = 30;  % 截止频率
+            [u, v] = meshgrid(-floor(cols/2):floor((cols-1)/2), -floor(rows/2):floor((rows-1)/2));
+            D = sqrt(u.^2 + v.^2);  % 频率坐标的欧几里得距离
+            H = double(D <= D0);  % 理想低通滤波器，D0为截止频率
+
+            % 频域滤波
+            fshiftFiltered = fshift .* H;  % 应用滤波器
+            fFiltered = ifftshift(fshiftFiltered);  % 逆变换移回原位置
+            filteredImgFreq = abs(ifft2(fFiltered));  % 逆傅里叶变换
+
+            % 显示频域滤波后的图像
+            figure;
+            imshow(filteredImgFreq, []);
+            title('频域滤波（理想低通滤波）后的图像');
         else
             errordlg('请先加载图像！', '错误');
         end
