@@ -44,6 +44,8 @@ function create_gui()
     sobelButton = uibutton(buttonLayout, 'Text', 'Sobel 边缘', 'ButtonPushedFcn', @(src, event) sobelButton_Callback());
     laplacianButton = uibutton(buttonLayout, 'Text', '拉普拉斯 边缘', 'ButtonPushedFcn', @(src, event) laplacianButton_Callback());
     extractTargetButton = uibutton(buttonLayout, 'Text', '特征提取', 'ButtonPushedFcn', @extractTargetButton_Callback);
+    LBPButton = uibutton(buttonLayout,'Text', '提取 LBP 特征', 'ButtonPushedFcn', @(src, event) lbpButton_Callback(src,event));
+    HOGButton = uibutton(buttonLayout, 'Text', '提取 HOG 特征', 'ButtonPushedFcn', @(src, event) hogButton_Callback(src,event));
     % 回调函数：加载图像
     function loadButton_Callback(hObject, eventdata)
         % 打开文件选择对话框，选择图像文件
@@ -370,46 +372,185 @@ end
           errordlg('请先加载图像！', '错误');
       end
       end
-     function extractTargetButton_Callback(src, event)
+function extractTargetButton_Callback(src, event)
     handles = guidata(src);  % 获取句柄
     if isfield(handles, 'img')
         % 1. 读取图像并转化为灰度图
         img = handles.img;  % 获取图像数据
         grayImg = rgb2gray(img);  % 转换为灰度图
-
         % 2. 高斯模糊，去噪
         blurredImg = imgaussfilt(grayImg, 2);  % 高斯滤波，去除噪声
-
         % 3. 边缘检测
         edgeImg = edge(blurredImg, 'Sobel');  % Sobel 算子边缘检测
-
         % 4. 形态学操作，增强边缘
         se = strel('disk', 2);  % 创建一个大小为2的圆形结构元素
         dilatedImg = imdilate(edgeImg, se);  % 膨胀操作
         erodedImg = imerode(dilatedImg, se);  % 腐蚀操作
-
         % 5. 连通域分析，提取目标
         stats = regionprops(erodedImg, 'BoundingBox', 'Area', 'Centroid');
-
         % 6. 过滤掉小区域
         minArea = 500;  % 设置最小区域面积，过滤掉噪声
         filteredStats = stats([stats.Area] > minArea);  % 过滤小区域
-
         % 7. 绘制检测到的目标
         figure('Name', '目标提取结果', 'NumberTitle', 'off');
         imshow(img);  % 显示原图
-
         hold on;
         for k = 1:length(filteredStats)
             % 绘制矩形框标出检测到的目标
             rectangle('Position', filteredStats(k).BoundingBox, 'EdgeColor', 'r', 'LineWidth', 2);
             % 绘制目标的质心
-            plot(filteredStats(k).Centroid(1), filteredStats(k).Centroid(2), 'go', 'MarkerSize', 10, 'LineWidth', 2);
+            plot(filteredStats(k).Centroid(1), filteredStats(k).Centroid(2), 'go', 'MarkerSize', 10, 'LineWidth', 2);           
+            % 提取目标区域
+            targetRegion = imcrop(img, filteredStats(k).BoundingBox);            
+            % 对目标区域进行 LBP 特征提取
+            lbpFeature(targetRegion);            
+            % 对目标区域进行 HOG 特征提取
+            hogFeature(targetRegion);
         end
         hold off;
         title('目标提取结果');
-    else
-        errordlg('请先加载图像！', '错误');
     end
-     end
 end
+
+% LBP特征提取与显示
+function lbpFeature(region)
+    % 转换为灰度图像
+    if size(region, 3) == 3
+        regionGray = rgb2gray(region);
+    else
+        regionGray = region;
+    end
+    
+    [N, M] = size(regionGray);  % 获取图像的尺寸
+    
+    lbp = zeros(N, M);  % 初始化 LBP 特征图
+    
+    % 计算 LBP 特征
+    for i = 2:N-1
+        for j = 2:M-1
+            % 邻域像素位置
+            neighbor = [i-1, j-1; i-1, j; i-1, j+1;i, j+1; i+1, j+1;i+1, j; i+1, j-1;i, j-1]; 
+            count = 0;
+            for k = 1:8
+                if regionGray(neighbor(k, 1), neighbor(k, 2)) > regionGray(i, j)
+                    count = count + 2^(8 - k);  % LBP 二进制编码
+                end
+            end
+            lbp(i, j) = count;  % 设置 LBP 特征值
+        end
+    end
+    
+    lbp = uint8(lbp);  % 将 LBP 特征图转为 8 位无符号整数
+    
+    % 显示 LBP 特征图
+    figure;
+    imshow(lbp, []);
+    title('目标区域 LBP 特征图');
+end
+
+% HOG特征提取与显示
+function hogFeature(region)
+    % 转换为灰度图像
+    if size(region, 3) == 3
+        grayRegion = rgb2gray(region);
+    else
+        grayRegion = region;
+    end
+    
+    % 计算 HOG 特征
+    [hogFeatures, visualization] = extractHOGFeatures(grayRegion, 'CellSize', [8 8], 'BlockSize', [2 2]);
+    
+    % 显示 HOG 特征的可视化
+    figure;
+    imshow(grayRegion);  % 显示灰度图像
+    hold on;
+    plot(visualization);
+    title('目标区域 HOG 特征可视化');
+end
+
+function lbpButton_Callback(src, event)
+    % 获取 GUI 数据
+    handles = guidata(src);
+    
+    % 获取显示图像的句柄
+    img = getimage(handles.imageAxes);
+    
+    % 检查图像是否为空
+    if isempty(img)
+        msgbox('请先加载图像。', '错误', 'error');
+        return;
+    end
+    
+    % 如果是彩色图像，转换为灰度图像
+    if size(img, 3) == 3
+        image = rgb2gray(img);  % 转换为灰度图像
+    else
+        image = img;  % 如果已经是灰度图像，直接使用
+    end
+    
+    [N, M] = size(image);  % 获取图像的尺寸
+    
+    lbp = zeros(N, M);  % 初始化 LBP 特征图
+    
+    % 计算 LBP 特征
+    for i = 2:N-1
+        for j = 2:M-1
+            % 邻域像素位置
+            neighbor = [i-1, j-1; i-1, j; i-1, j+1; i, j+1;i+1, j+1;i+1, j;i+1, j-1;i, j-1];
+            
+            count = 0;
+            for k = 1:8
+                if image(neighbor(k, 1), neighbor(k, 2)) > image(i, j)
+                    count = count + 2^(8 - k);  % LBP 二进制编码
+                end
+            end
+            lbp(i, j) = count;  % 设置 LBP 特征值
+        end
+    end
+    
+    lbp = uint8(lbp);  % 将 LBP 特征图转为 8 位无符号整数
+    
+    % 显示 LBP 特征图
+    figure;
+    imshow(lbp, []);
+    title('LBP 特征图');
+    
+    % 获取一个 8x8 子区域，并计算其直方图
+    subim = lbp(1:8, 1:8);
+    figure;
+    imhist(subim);  % 显示直方图
+    title('第一个子区域直方图');
+end
+
+function hogButton_Callback(src, event)
+    % 提取 HOG 特征的回调函数
+    handles = guidata(src);  % 获取 GUI 数据
+    img = getimage(handles.imageAxes);  % 获取图像
+
+    if isempty(img)
+        msgbox('请先加载图像。', '错误', 'error');
+        return;
+    end
+    
+    % 如果是彩色图像，转换为灰度图像
+    if size(img, 3) == 3
+        grayImg = rgb2gray(img);
+    else
+        grayImg = img;
+    end
+    
+    % 计算 HOG 特征
+    [hogFeatures, visualization] = extractHOGFeatures(grayImg, 'CellSize', [8 8], 'BlockSize', [2 2]);
+
+    
+    % 显示 HOG 特
+    figure;
+    imshow(grayImg);  % 显示灰度图像
+    hold on;
+    plot(visualization);
+    title('HOG 特征可视化');
+end
+end
+
+
+ 
