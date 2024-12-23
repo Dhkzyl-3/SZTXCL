@@ -401,14 +401,23 @@ function extractTargetButton_Callback(src, event)
             % 绘制目标的质心
             plot(filteredStats(k).Centroid(1), filteredStats(k).Centroid(2), 'go', 'MarkerSize', 10, 'LineWidth', 2);           
             % 提取目标区域
-            targetRegion = imcrop(img, filteredStats(k).BoundingBox);            
+            targetRegion = imcrop(img, filteredStats(k).BoundingBox); 
+        end
+            for k = 1:length(filteredStats)
+            % 绘制矩形框标出检测到的目标
+            rectangle('Position', filteredStats(k).BoundingBox, 'EdgeColor', 'r', 'LineWidth', 2);
+            % 绘制目标的质心
+            plot(filteredStats(k).Centroid(1), filteredStats(k).Centroid(2), 'go', 'MarkerSize', 10, 'LineWidth', 2);           
+            % 提取目标区域
+            targetRegion = imcrop(img, filteredStats(k).BoundingBox);
             % 对目标区域进行 LBP 特征提取
             lbpFeature(targetRegion);            
             % 对目标区域进行 HOG 特征提取
             hogFeature(targetRegion);
-        end
-        hold off;
-        title('目标提取结果');
+            
+            end
+            hold off;
+            title('目标提取结果');
     end
 end
 
@@ -551,6 +560,3 @@ function hogButton_Callback(src, event)
     title('HOG 特征可视化');
 end
 end
-
-
- 
