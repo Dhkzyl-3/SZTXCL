@@ -23,8 +23,8 @@ function create_gui()
     buttonPanel.Layout.Row = 2;
 
     % 按钮布局
-    buttonLayout = uigridlayout(buttonPanel, [5, 4]); % 三行四列的布局
-    buttonLayout.RowHeight = {40, 40, 40,40,40}; % 每个按钮的高度
+    buttonLayout = uigridlayout(buttonPanel, [6, 4]); % 三行四列的布局
+    buttonLayout.RowHeight = {40, 40, 40,40,40,40}; % 每个按钮的高度
     buttonLayout.ColumnWidth = {'1x', '1x', '1x', '1x'};  % 按钮均匀分布
 
     % 创建按钮
@@ -43,6 +43,7 @@ function create_gui()
     prewittButton = uibutton(buttonLayout, 'Text', 'Prewitt 边缘', 'ButtonPushedFcn', @(src, event) prewittButton_Callback());
     sobelButton = uibutton(buttonLayout, 'Text', 'Sobel 边缘', 'ButtonPushedFcn', @(src, event) sobelButton_Callback());
     laplacianButton = uibutton(buttonLayout, 'Text', '拉普拉斯 边缘', 'ButtonPushedFcn', @(src, event) laplacianButton_Callback());
+    extractTargetButton = uibutton(buttonLayout, 'Text', '特征提取', 'ButtonPushedFcn', @extractTargetButton_Callback);
     % 回调函数：加载图像
     function loadButton_Callback(hObject, eventdata)
         % 打开文件选择对话框，选择图像文件
@@ -368,5 +369,47 @@ end
       else
           errordlg('请先加载图像！', '错误');
       end
-  end
+      end
+     function extractTargetButton_Callback(src, event)
+    handles = guidata(src);  % 获取句柄
+    if isfield(handles, 'img')
+        % 1. 读取图像并转化为灰度图
+        img = handles.img;  % 获取图像数据
+        grayImg = rgb2gray(img);  % 转换为灰度图
+
+        % 2. 高斯模糊，去噪
+        blurredImg = imgaussfilt(grayImg, 2);  % 高斯滤波，去除噪声
+
+        % 3. 边缘检测
+        edgeImg = edge(blurredImg, 'Sobel');  % Sobel 算子边缘检测
+
+        % 4. 形态学操作，增强边缘
+        se = strel('disk', 2);  % 创建一个大小为2的圆形结构元素
+        dilatedImg = imdilate(edgeImg, se);  % 膨胀操作
+        erodedImg = imerode(dilatedImg, se);  % 腐蚀操作
+
+        % 5. 连通域分析，提取目标
+        stats = regionprops(erodedImg, 'BoundingBox', 'Area', 'Centroid');
+
+        % 6. 过滤掉小区域
+        minArea = 500;  % 设置最小区域面积，过滤掉噪声
+        filteredStats = stats([stats.Area] > minArea);  % 过滤小区域
+
+        % 7. 绘制检测到的目标
+        figure('Name', '目标提取结果', 'NumberTitle', 'off');
+        imshow(img);  % 显示原图
+
+        hold on;
+        for k = 1:length(filteredStats)
+            % 绘制矩形框标出检测到的目标
+            rectangle('Position', filteredStats(k).BoundingBox, 'EdgeColor', 'r', 'LineWidth', 2);
+            % 绘制目标的质心
+            plot(filteredStats(k).Centroid(1), filteredStats(k).Centroid(2), 'go', 'MarkerSize', 10, 'LineWidth', 2);
+        end
+        hold off;
+        title('目标提取结果');
+    else
+        errordlg('请先加载图像！', '错误');
+    end
+     end
 end
