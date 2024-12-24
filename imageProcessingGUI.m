@@ -282,6 +282,7 @@ function create_gui()
             figure;
             imshow(filteredImgFreq, []);
             title('频域滤波（理想低通滤波）后的图像');
+            end
         else
             errordlg('请先加载图像！', '错误');
         end
